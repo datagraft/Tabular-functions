@@ -7,7 +7,9 @@
                  [grafter "0.5.0"]
                  [grafter/vocabularies "0.1.2"]
                  [org.slf4j/slf4j-jdk14 "1.7.5"]]
-  :main ^:skip-aot tabular-functions.core
+  :repl-options {:init (set! *print-length* 200)
+                 :init-ns tabular-functions.pipeline }
+; :main ^:skip-aot tabular-functions.core
 ; :source-paths ["src/tabular-functions"] 
  :target-path "target/%s"
   :jvm-opts ^:replace ["-server"
@@ -20,4 +22,5 @@
   :plugins [[lein-grafter "0.5.0"]
             [lein-codox "0.9.0"]]
   :min-lein-version "2.5.1"
-  :profiles {:uberjar {:aot :all}})
+  :profiles {:uberjar {:aot :all}}
+  :codox {:output-path "doc/"})

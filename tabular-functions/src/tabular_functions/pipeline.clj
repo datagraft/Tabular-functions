@@ -1,4 +1,4 @@
-(ns tabular-functions.core
+(ns tabular-functions.pipeline
   (
   :require
      [grafter.tabular :refer :all]
@@ -7,11 +7,13 @@
      [grafter.rdf.templater :refer [graph]]
      [grafter.vocabularies.rdf :refer :all]
      [grafter.vocabularies.foaf :refer :all]
-     [incanter.core :as inc]  ))
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+     [incanter.core :as inc]  
+     [tabular-functions.aggregations :refer :all]
+     [tabular-functions.datatypes :refer :all]))
+;(defn -main
+;  "I don't do a whole lot ... yet."
+;  [& args]
+;  (println "Hello, World!"))
 
 (defn add-row "Inserts new row into a dataset. Two options are available:
   1. Takes a dataset and vector containing field values and appends new row to the end of a dataset, e.g.
@@ -181,7 +183,9 @@
                    - :date for sorting dates
 
   Order is given in forth parameter as either :asc for ascending and :desc for descending. 
-  Sorting by multiple columns works as follows: if several rows have equal columns(first in the vector of given columns) according to the given comparator type, these rows will be sorted by second column, if both first and second are equal, sorting will be performed by the third column etc.                 
+  Sorting by multiple columns works as follows: if several rows have equal columns(first in the vector of given columns) 
+  according to the given comparator type, these rows will be sorted by second column, if both first and second are equal, 
+  sorting will be performed by the third column etc.                 
   
   Examples:
                    
@@ -276,7 +280,8 @@
     (-> (make-dataset  (sort-by colname f (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
 
 (defn shift-column "Changes column's position inside a dataset. Two options are available:
-  1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than specified index will be moved one position left e.g.
+  1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than 
+  specified index will be moved one position left e.g.
           
           Given original dataset
                 
@@ -301,7 +306,8 @@
                 |  7 |  9 |  c |  8 |
 
 
-  2. Takes a dataset, column name/index and index where this column should be moved, moves given column to the specified index.  Other columns will be shifted appropriately.
+  2. Takes a dataset, column name/index and index where this column should be moved, moves given column to the specified index.  
+  Other columns will be shifted appropriately.
           
           Given original dataset
                 
@@ -552,28 +558,165 @@
   ([dataset colnames colnames-separators]))
 
 
-(defn raise ""
-  [dataset colnames])
+(defn raise "Given a dataset, name of variable-column that should be used to generate new columns(raise from row values to column names) and
+  name of a value-column containing the values that should be used to fill the new column reshapes a dataset. Function performs 
+  the opposite actions  compared to the Grafter `melt` function. All columns except of value-column act as unique id, if duplicates 
+  are found, function will throw an error. Example:
+            
+               Given original dataset:
+
+                    |      :company-name |             :position |  :total-employed |
+                    |--------------------+-----------------------+------------------|
+                    |              Cisco | Jr.Software developer |               22 |
+                    |              Cisco | Sr.Software developer |               10 |
+                    |              Cisco |                Intern |                2 |
+                    | Oracle corporation |        Assist.manager |                2 |
+                    | Oracle corporation | Sr.Software developer |               38 |
+                    |                IBM |        Assist.manager |                2 |
+                    |                IBM | Jr.Software developer |                8 |
+                    |              Cisco |        Assist.manager |                3 |
+                    |                IBM | Sr.Software developer |                5 |
+                    |                IBM |                Intern |                4 |
+
+
+               function returns the following result:
+
+               `(raise :position :total-employed) ;  =>`
+
+
+                    |      :company-name | :Jr.Software developer | :Sr.Software developer | :Intern | :Assist.manager |
+                    |--------------------+------------------------+------------------------+---------+-----------------|
+                    |              Cisco |                     22 |                     10 |       2 |               3 |  
+                    |                IBM |                      8 |                      5 |       4 |               2 |
+                    | Oracle corporation |                        |                     38 |         |               2 |
+
+            "
+  [dataset variable value]
+  (
+   ;sort
+   ;group by all but mentioned columns
+   ;
+   )
+  )
 
 
 (defn group-rows "Given a dataset, vector of column names and map of colnames--functions and creates a new dataset containg rows grouped by
-  colnames from vector and the result of applying functions to correspondent column values. Each function in a map should take collection as 
-  a parameter and return a single value
+  colnames from vector and the result of applying functions to correspondent column values. Each function in a map should 
+  take collection as  a parameter and return a single value. 
+               
+                 For most common aggregations there exists set of pre-defined functions:
+                 - MIN
+                 - MAX
+                 - SUM
+                 - AVG
+                 - COUNT
 
 
+        Given original dataset:
+                    
+                    | :name |    :order | :payed |
+                    |-------+-----------+--------|
+                    | Alice |      1111 |    110 |
+                    |   Bob |       998 |     55 |
+                    | Alice |      1112 |     35 |
+                    | Alice |      1113 |     25 |
+                    |   Bob |       999 |    375 |
+
+   
+
+          function returns the following result:
+
+          `(group-rows [:name] {:payed SUM}) ;  =>`
+
+                    | :name | :payed_SUM |
+                    |-------+------------|
+                    | Alice |        170 |
+                    |   Bob |        430 |
                  "
   [dataset colnames colnames-functions ])
 
 
 (defn join-dataset "Joins two datasets together. Two options are available:
                    
-  1. Takes a dataset, filename and type of concatenation (either :v to concatenate datasets vertically -- append data from file to the 
-  right side of given dataset or :h to concatenate datasets horizontally -- append data from file to the bottom of given dataset). 
+  1. Takes a dataset, filename and type of concatenation (either :v to concatenate datasets vertically -- append data from file 
+  to the right side of given dataset or :h to concatenate datasets horizontally -- append data from file to the bottom of 
+  given dataset). 
   
   Throws an error if number of columns/rows is not appropriate
                    
-  2. Takes a dataset, filename, column that acts as foreign key in original dataset and columns for id and value in file. Builds a lookup 
-  table from file and maps values in original dataset appropriately."
+  Examples.
+
+        Given original dataset:
+                    
+                    | :name |    :age |  :gender |
+                    |-------+---------+----------|
+                    | Alice |      18 |   female |
+                    |   Bob |      30 |     male |
+        
+        file 'left-part.csv' with content:
+                   
+                   email,country
+                   alice@example.com,Norway
+                   bob@example.com,Norway
+        
+
+          function returns the following result:
+
+          `(join-dataset \"left-part.csv\" :v) ;  =>`
+
+                    | :name |    :age |  :gender |            :email | country | 
+                    |-------+---------+----------+-------------------+---------|
+                    | Alice |      18 |   female | alice@example.com |  Norway |
+                    |   Bob |      30 |     male |   bob@example.com |  Norway |
+
+       
+        Given the same original dataset and file 'other-persons.csv' with content:
+                   
+                   name,age,gender
+                   John,38,male
+                   Mary,27,female
+
+          function returns the following result:
+
+          `(join-dataset \"other-persons.csv\" :h) ;  =>`
+                    
+                    | :name |    :age |  :gender |
+                    |-------+---------+----------|
+                    | Alice |      18 |   female |
+                    |   Bob |      30 |     male |
+                    |  John |      38 |     male |
+                    |  Mary |      27 |   female |
+        
+              
+  2. Takes a dataset, filename, column that acts as foreign key in original dataset and columns for id and value in file. 
+  Builds a lookup table from file and maps values in original dataset appropriately.
+                   
+        Given original dataset:
+                    
+                    | :name |    :age |  :position |
+                    |-------+---------+------------|
+                    | Alice |      18 |         25 |
+                    |   Bob |      30 |          7 |
+        
+        file 'position-codes.csv' with content:
+                   
+                   code,description
+                   1,manager
+                   7,engineer
+                   8,senior engineer
+                   25,accountant
+        
+
+          function returns the following result:
+
+          `(join-dataset \"position-codes.csv\" :position \"code\" \"description\") ;  =>`
+
+
+                    | :name |    :age |  :position |
+                    |-------+---------+------------|
+                    | Alice |      18 | accountant |
+                    |   Bob |      30 |   engineer |
+                   "
   ([dataset filename concat-type])
   ([dataset filename fkey id value] )
   )
