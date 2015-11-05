@@ -11,3 +11,5 @@ pom.xml.asc
 .lein-failures
 .nrepl-port
 !/target/base+system+user+dev/doc/
+.swp
+.swo
