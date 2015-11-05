@@ -9,4 +9,4 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
-!/target/base+system+user+dev/doc
+!/target/base+system+user+dev/doc/
