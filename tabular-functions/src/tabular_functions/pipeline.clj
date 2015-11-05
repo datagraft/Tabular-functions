@@ -15,6 +15,8 @@
 ;  [& args]
 ;  (println "Hello, World!"))
 
+(defn- string-as-keyword [s] (when (seq s) (-> (str s) clojure.string/trim (clojure.string/replace "(" "-") (clojure.string/replace ")" "") (clojure.string/replace " " "_") (clojure.string/replace "," "-") (clojure.string/replace "." "") (clojure.string/replace "/" "-") (clojure.string/replace "---" "-") (clojure.string/replace "--" "-") (clojure.string/replace ":" "") (clojure.string/replace "\"" ""))))
+
 (defn add-row "Inserts new row into a dataset. Two options are available:
   1. Takes a dataset and vector containing field values and appends new row to the end of a dataset, e.g.
           
@@ -552,6 +554,30 @@
                     |-------+---------+----------|
                     | Alice |      28 |   female |
                     |   Bob |      32 |     male |
+
+
+  3. Given a dataset, a column(sequence of columns) and map of column names--separators looks for rows having the same values in the 
+  specified field(s) and merges the values from other columns together using given separators
+                    
+                        
+        Given original dataset:
+                    
+                    | :name |    :phone-number |  
+                    |-------+------------------|
+                    | Alice |        123-45-67 |
+                    |   Bob |        777-88-99 |
+                    | Alice |        111-11-11 |
+
+   
+
+        function returns the following result:
+
+          `(remove-duplicates [:name] {:phone-nuber \", \"}) ;  =>`
+
+                    | :name |        :phone-number |  
+                    |-------+----------------------|
+                    | Alice | 123-45-67, 111-11-11 |
+                    |   Bob |            777-88-99 |
                         "
   ([dataset])
   ([dataset colnames])
@@ -717,8 +743,16 @@
                     | Alice |      18 | accountant |
                     |   Bob |      30 |   engineer |
                    "
-  ([dataset filename concat-type])
-  ([dataset filename fkey id value] )
+  ([dataset filename concat-type]
+  (cond (= concat-type :h) (-> (make-dataset (:rows (incanter.core/conj-rows dataset (map reverse(->(read-dataset filename)(drop-rows 1)(:rows))) )) (column-names dataset))(with-meta (meta dataset)))
+        (= concat-type :v)
+        dataset
+    )
+
+   )
+  ([dataset filename fkey id value]
+   (mapc dataset { fkey #((zipmap (map second (map first (-> (read-dataset filename) (-> (make-dataset move-first-row-to-header) (rename-columns (comp keyword string-as-keyword))) (columns [(keyword id)]) (:rows)))) (map second (map first (-> (read-dataset filename) (-> (make-dataset move-first-row-to-header) (rename-columns (comp keyword string-as-keyword))) (columns [(keyword value)]) (:rows))))) %)})
+   )
   )
 
 (defn split-column "Given a dataset, column name and separator splits specified column into multiple by separator. New columns get 

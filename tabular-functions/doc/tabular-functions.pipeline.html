@@ -345,6 +345,30 @@ only the first encountered row in this sequence. Dataset should be sorted in des
                   |-------+---------+----------|
                   | Alice |      28 |   female |
                   |   Bob |      32 |     male |
+
+
+3. Given a dataset, a column(sequence of columns) and map of column names--separators looks for rows having the same values in the 
+specified field(s) and merges the values from other columns together using given separators
+                  
+                      
+      Given original dataset:
+                  
+                  | :name |    :phone-number |  
+                  |-------+------------------|
+                  | Alice |        123-45-67 |
+                  |   Bob |        777-88-99 |
+                  | Alice |        111-11-11 |
+
+ 
+
+      function returns the following result:
+
+        `(remove-duplicates [:name] {:phone-nuber &quot;, &quot;}) ;  =&gt;`
+
+                  | :name |        :phone-number |  
+                  |-------+----------------------|
+                  | Alice | 123-45-67, 111-11-11 |
+                  |   Bob |            777-88-99 |
                       </pre></div></div><div class="public anchor" id="var-shift-column"><h3>shift-column</h3><div class="usage"><code>(shift-column dataset column)</code><code>(shift-column dataset column position-to)</code></div><div class="doc"><pre class="plaintext">Changes column&apos;s position inside a dataset. Two options are available:
 1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than 
 specified index will be moved one position left e.g.
