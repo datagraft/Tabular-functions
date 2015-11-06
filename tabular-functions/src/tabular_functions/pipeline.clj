@@ -268,18 +268,29 @@
                    |   3 | the longest string |  6 | 25.12.2015 |
 
 
-                   " [dataset colname sorttype mode] 
+                   " [dataset colnames sorttype mode] 
   
   (let [f (cond 
-            (and (= sorttype :alpha) (= mode :asc))    #(compare (str %1) (str %2)) 
-            (and (= sorttype :alpha) (= mode :desc))   #(compare (str %2) (str %1)) 
-            (and (= sorttype :num) (= mode :asc))      #(<  (Double/parseDouble (str %1))  (Double/parseDouble (str %2)))  
-            (and (= sorttype :num) (= mode :desc))     #(>  (Double/parseDouble (str %1))  (Double/parseDouble (str %2))) 
-            (and (= sorttype :len) (= mode :asc))      #(< (count (str %1)) (count (str %2))) 
-            (and (= sorttype :len) (= mode :desc))     #(> (count (str %1)) (count (str %2)))
-            )] 
-    
-    (-> (make-dataset  (sort-by colname f (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
+            (and (= sorttype :alpha) (= mode :asc))      #(compare (str %1) (str %2)) 
+            (and (= sorttype :alpha) (= mode :desc))     #(compare (str %2) (str %1)) 
+            (and (= sorttype :num)   (= mode :asc))      #(<  (Double/parseDouble (str %1))  (Double/parseDouble (str %2)))  
+            (and (= sorttype :num)   (= mode :desc))     #(>  (Double/parseDouble (str %1))  (Double/parseDouble (str %2))) 
+            (and (= sorttype :len)   (= mode :asc))      #(< (count (str %1)) (count (str %2))) 
+            (and (= sorttype :len)   (= mode :desc))     #(> (count (str %1)) (count (str %2)))
+            (and (= sorttype :date)  (= mode :asc))      #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1))
+                                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2)))
+            (and (= sorttype :date)  (= mode :desc))     #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2))
+                                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1)))
+            :else                                        #(compare %1 %2)
+            )
+        cols (cond
+               (= (count colnames) 1) (first colnames)
+               :else (apply juxt colnames)
+               )
+               ] 
+    ; TODO: rewrite comparators for multiple
+      (-> (make-dataset  (sort-by  (juxt (first colnames) (second colnames)) f   (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
+   ;  (-> (make-dataset  (sort-by  colname f (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
 
 (defn shift-column "Changes column's position inside a dataset. Two options are available:
   1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than 
@@ -764,20 +775,70 @@
                     | :name |                       :address |            :email |
                     |-------+--------------------------------+-------------------|
                     | Alice | New York, Harrison Street, 507 | alice@example.com |
-                    |   Bob |     Richmond, Main Street, 17  |   bob@example.com |
+                    |   Bob |      Richmond, Main Street, 17 |   bob@example.com |
+                    |  Mary | NY, Harrison Street, 29, H0512 |  mary@example.com |
+
 
    
 
           function returns the following result:
 
-          `(split-column :address \", \") ;  =>`
+          `(split-column :address #\", \") ;  =>`
 
-                    | :name | address_splitted_0 |  address_splitted_1 | address_splitted_2 |            :email |
-                    |-------+--------------------+---------------------+--------------------+-------------------|
-                    | Alice |           New York |     Harrison Street |                507 | alice@example.com |
-                    |   Bob |           Richmond |         Main Street |                17  |   bob@example.com |
+
+                   | :name | :address_splitted_0 | :address_splitted_1 | :address_splitted_2 | :address_splitted_3 |            :email |
+                   |-------+---------------------+---------------------+---------------------+---------------------+-------------------|
+                   | Alice |            New York |     Harrison Street |                 507 |                     | alice@example.com |
+                   |   Bob |            Richmond |         Main Street |                  17 |                     |   bob@example.com |
+                   |  Mary |                  NY |     Harrison Street |                  29 |               H0512 |  mary@example.com |
+
  " 
   [dataset colname separator]
-  ( derive-column dataset :new [colname] (fn [col] (clojure.string/split col separator)))
-  
-)
+  ;( derive-column dataset :new [colname] (fn [col] (clojure.string/split col separator)))
+
+
+      (let [ col-pos (.indexOf (column-names dataset) colname)
+            [colon & columnname] (str colname)
+            new-rows   (->> dataset
+                            :rows
+                            (map (fn [row]
+                                  (let [value-in-row (get row colname)
+                                  new-col-vals (clojure.string/split value-in-row separator)
+                                  ;new-col-names (apply #(str (str colname) "_splitted_" (str %)) (into [] (range (count new-col-vals))))
+                                  index-last (- (count new-col-vals) 1)]
+                                          
+                                      
+                                  (loop [i 0 rowmap row]
+                                       (if (> i index-last)
+                                         rowmap
+                                         (recur (inc i)
+                                                (assoc rowmap (keyword (str (apply str columnname) "_splitted_" (str i)))  (get new-col-vals i)))
+                                       )
+                                  )
+                                  ))
+                              ))
+            new-columns   (set (apply concat (->> dataset
+                            :rows
+                            (map (fn [row]
+                                  (let [value-in-row (get row colname)
+                                  new-col-vals (clojure.string/split value-in-row separator)
+                                  ;new-col-names (apply #(str (str colname) "_splitted_" (str %)) (into [] (range (count new-col-vals))))
+                                  index-last (- (count new-col-vals) 1)]
+                                          
+                                      
+                                  (loop [i 0 newcols #{}]
+                                       (if (> i index-last)
+                                          newcols
+                                         (recur (inc i)(conj newcols (keyword (str (apply str columnname) "_splitted_" (str i))) ))
+                                                
+                                       )
+                                  )
+                                  ))
+                              ))))
+
+            ]
+      ;new-rows
+            ( -> (make-dataset new-rows 
+                               (concat (subvec (column-names dataset) 0 col-pos) (sort new-columns)(subvec (column-names dataset) (+ col-pos 1))))
+                 (with-meta (meta dataset)))
+      ))
