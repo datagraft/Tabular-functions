@@ -177,19 +177,39 @@
          )
   )
  
-(defn sort-dataset "Sorts dataset by given column name(s) in given order. Type of comparator used for sorting is defined 
-  by the third parameter as one of following:
-                   - :alpha for alphabetical sorting;
-                   - :num for numerical sorting;
-                   - :len for sorting by field length;
-                   - :date for sorting dates
+(defn- get-comparator [sorttype] 
+  (let [f (cond 
+            (= sorttype :ascalpha)       #(compare (str %1) (str %2)) 
+            (= sorttype :descalpha)      #(compare (str %2) (str %1)) 
+            (= sorttype :ascnum)         #(<  (Double/parseDouble (str %1))  (Double/parseDouble (str %2)))  
+            (= sorttype :descnum)        #(>  (Double/parseDouble (str %1))  (Double/parseDouble (str %2))) 
+            (= sorttype :asclen)         #(< (count (str %1)) (count (str %2))) 
+            (= sorttype :desclen)        #(> (count (str %1)) (count (str %2)))
+            (= sorttype :ascdate)        #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1))
+                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2)))
+            (= sorttype :descdate)       #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2))
+                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1)))
+            :else                        #(compare %1 %2)
+            )
+               ]
+   f )
+ ) 
+    
 
-  Order is given in forth parameter as either :asc for ascending and :desc for descending. 
-  Sorting by multiple columns works as follows: if several rows have equal columns(first in the vector of given columns) 
-  according to the given comparator type, these rows will be sorted by second column, if both first and second are equal, 
-  sorting will be performed by the third column etc.                 
+(defn sort-dataset "Sorts dataset by given column names in given order. Column names and types of sorting are given in a vector. 
+  Sorting priority is defined by order of column name -- sorting type pair. Sorting by multiple columns works as follows: 
+  if several rows have equal columns(first in the vector of given columns) according to the given comparator type, these rows 
+  will be sorted by second column and second comparator, if both first and second are equal, sorting will be performed by the third column 
+  and third comparator etc.                 
   
-  Examples:
+  Type of comparator used for sorting is defined as one of following:
+
+                   - :ascalpha, :descalpha for alphabetical sorting (in ascending and descending order correspondingly);
+                   - :ascnum, :descnum for numerical sorting;
+                   - :asclen, :desclen for sorting by field length;
+                   - :ascdate, :descdate for sorting dates
+
+    Examples:
                    
              Given original dataset
    
@@ -203,7 +223,7 @@
 
              calling function with different parameters results in following datasets:
 
-                `(sort-dataset dataset [:a] :alpha :asc) ; sort by column :a in ascending alphabetical order =>`
+                `(sort-dataset dataset [{:a :ascalpha}]) ; sort by column :a in ascending alphabetical order =>`
                    
 
                    |  :a |                 :b | :c |         :d |
@@ -215,7 +235,7 @@
 
 
 
-               `(sort-dataset dataset [:a] :alpha :desc) ; sort by column :a in descending alphabetical order =>`
+               `(sort-dataset dataset [{:a :descalpha}]) ; sort by column :a in descending alphabetical order =>`
 
                    |  :a |                 :b | :c |         :d |
                    |-----+--------------------+----+------------|
@@ -225,7 +245,7 @@
                    |  44 |      longer string |  9 | 03.03.2013 |
 
 
-               `(sort-dataset dataset [:a] :num :asc) ; sort by column :a in ascending numerical order =>`
+               `(sort-dataset dataset [{:a :ascnum}]) ; sort by column :a in ascending numerical order =>`
 
                    |  :a |                 :b | :c |         :d |
                    |-----+--------------------+----+------------|
@@ -235,7 +255,7 @@
                    | 111 |             string |  3 | 03.11.2015 |
 
 
-               `(sort-dataset dataset [:b] :len :asc) ; sort by column :b in ascending order by field length =>`
+               `(sort-dataset dataset [{:b :asclen}]) ; sort by column :b in ascending order by field length =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -246,7 +266,7 @@
                    | 111 |             string |  3 | 03.11.2015 |
                    
                    
-               `(sort-dataset dataset [:d] :date :asc) ; sort by column :d in ascending order by date =>`
+               `(sort-dataset dataset [{:d :ascdate}]) ; sort by column :d in ascending order by date =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -257,7 +277,7 @@
                    |   3 | the longest string |  6 | 25.12.2015 |
 
 
-               `(sort-dataset dataset [:b :a] :len :asc) ; sort by columns :b, :a in ascending order by field length =>`
+               `(sort-dataset dataset [{:b asclen} {:a :asclen}]) ; sort by column :b in ascending order by field length, for equal values arrange by column :a in ascending order by length =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -268,7 +288,8 @@
                    |   3 | the longest string |  6 | 25.12.2015 |
 
 
-               `(sort-dataset dataset [:a :b] :len :asc) ; sort by columns :b, :a in ascending order by field length =>`
+
+               `(sort-dataset dataset [{:a asclen} {:b :asclen}]) ; sort by column :a in ascending order by field length, for equal values arrange by column :b in ascending order by length =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -279,35 +300,38 @@
                    | 111 |             string |  3 | 03.11.2015 |
                    
                    Note: sorting by date requires dates in column to be in 'dd.mm.yyyy' format( for conversion date-literal function may be used)
-                   " [dataset colnames sorttype mode] 
+                   " 
+  ;[dataset colnames sorttype mode] 
+   [dataset colnames-sorttypes]
   
-  (let [f (cond 
-            (and (= sorttype :alpha) (= mode :asc))      #(compare (str %1) (str %2)) 
-            (and (= sorttype :alpha) (= mode :desc))     #(compare (str %2) (str %1)) 
-            (and (= sorttype :num)   (= mode :asc))      #(<  (Double/parseDouble (str %1))  (Double/parseDouble (str %2)))  
-            (and (= sorttype :num)   (= mode :desc))     #(>  (Double/parseDouble (str %1))  (Double/parseDouble (str %2))) 
-            (and (= sorttype :len)   (= mode :asc))      #(< (count (str %1)) (count (str %2))) 
-            (and (= sorttype :len)   (= mode :desc))     #(> (count (str %1)) (count (str %2)))
-            (and (= sorttype :date)  (= mode :asc))      #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1))
-                                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2)))
-            (and (= sorttype :date)  (= mode :desc))     #(compare (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %2))
-                                                                   (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1)))
-            :else                                        #(compare %1 %2)
-            )
-               ] 
-    ; TODO:  rewrite comparators for multiple 
-   ;   (-> (make-dataset  (sort-by  (juxt (first colnames) (second colnames)) f   (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
-   ;  (-> (make-dataset  (sort-by  colname f (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
+  
       (-> (make-dataset  
-            (sort  #(loop [ctr 0 ]
-;(                      println (str "Comparing" (str ((get colnames ctr) %1)) "---" (str ((get colnames ctr) %2)) "=" (str (f ((get colnames ctr) %1) ((get colnames ctr) %2)))))
-                                                          (if  (or (not= (f ((get colnames ctr) %1) ((get colnames ctr) %2))
-                                                                     (f ((get colnames ctr) %2) ((get colnames ctr) %1))) (= ctr (- (count colnames) 1)))
-                                                           (f ((get colnames ctr) %1) ((get colnames ctr) %2))
-                                                           (recur (inc ctr) ))
-                                                            )  (:rows dataset))
+            ;(sort  #(loop [ctr 0 ]
+            ;                                              (if  (or (not= (f ((get colnames ctr) %1) ((get colnames ctr) %2))
+            ;                                                         (f ((get colnames ctr) %2) ((get colnames ctr) %1))) (= ctr (- (count colnames) 1)))
+            ;                                               (f ((get colnames ctr) %1) ((get colnames ctr) %2))
+            ;                                               (recur (inc ctr) ))
+            ;                                                )  (:rows dataset))
+
+            (sort  #(loop [cs colnames-sorttypes]
+                      (let [current (first cs)
+                            f (get-comparator (val (first current)))
+                            col (key (first current))]
+                        (println (str "Comparing " (str (col %1)) " -- " (str (col %2)) " = " (str (f (col %1) (col %2)))))
+                                                          (if  (or (empty? cs) 
+                                                                   (not= 
+                                                                   (f (col %1) (col %2))
+                                                                   (f (col %2) (col %1))
+                                                                         ) )
+                                                            (f (col %1) (col %2))
+
+                                                          
+                                                           (recur (rest cs) ))
+                                                            )
+                  )  (:rows dataset))
+
                         (column-names dataset)) (with-meta (meta dataset)))
-      ))
+      )
 
 (defn shift-column "Changes column's position inside a dataset. Two options are available:
   1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than 
