@@ -1,4 +1,4 @@
-(ns tabular-functions.aggregations
+(ns tabular-functions.stats
   (
   :require
      [grafter.tabular :refer :all]
@@ -9,8 +9,3 @@
      [grafter.vocabularies.foaf :refer :all]
      [incanter.core :as inc]  ))
 
-(defn MIN [& args] (apply min args))
-(defn MAX [& args] (apply max args))
-(defn SUM [& args] (apply + args))
-(defn COUNT [& args] (count (into [] args)))
-(defn AVG [& args] (/ (apply SUM args) (apply COUNT args)))

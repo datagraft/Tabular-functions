@@ -203,7 +203,7 @@
 
              calling function with different parameters results in following datasets:
 
-                `(sort-dataset [:a] :alpha :asc) ; sort by column :a in ascending alphabetical order =>`
+                `(sort-dataset dataset [:a] :alpha :asc) ; sort by column :a in ascending alphabetical order =>`
                    
 
                    |  :a |                 :b | :c |         :d |
@@ -215,7 +215,7 @@
 
 
 
-               `(sort-dataset [:a] :alpha :desc) ; sort by column :a in descending alphabetical order =>`
+               `(sort-dataset dataset [:a] :alpha :desc) ; sort by column :a in descending alphabetical order =>`
 
                    |  :a |                 :b | :c |         :d |
                    |-----+--------------------+----+------------|
@@ -225,7 +225,7 @@
                    |  44 |      longer string |  9 | 03.03.2013 |
 
 
-               `(sort-dataset [:a] :num :asc) ; sort by column :a in ascending numerical order =>`
+               `(sort-dataset dataset [:a] :num :asc) ; sort by column :a in ascending numerical order =>`
 
                    |  :a |                 :b | :c |         :d |
                    |-----+--------------------+----+------------|
@@ -235,7 +235,7 @@
                    | 111 |             string |  3 | 03.11.2015 |
 
 
-               `(sort-dataset [:b] :len :asc) ; sort by column :b in ascending order by field length =>`
+               `(sort-dataset dataset [:b] :len :asc) ; sort by column :b in ascending order by field length =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -246,7 +246,7 @@
                    | 111 |             string |  3 | 03.11.2015 |
                    
                    
-               `(sort-dataset [:d] :date :asc) ; sort by column :d in ascending order by date =>`
+               `(sort-dataset dataset [:d] :date :asc) ; sort by column :d in ascending order by date =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -257,7 +257,7 @@
                    |   3 | the longest string |  6 | 25.12.2015 |
 
 
-               `(sort-dataset [:b :a] :len :asc) ; sort by columns :b, :a in ascending order by field length =>`
+               `(sort-dataset dataset [:b :a] :len :asc) ; sort by columns :b, :a in ascending order by field length =>`
 
 
                    |  :a |                 :b | :c |         :d |
@@ -268,6 +268,17 @@
                    |   3 | the longest string |  6 | 25.12.2015 |
 
 
+               `(sort-dataset dataset [:a :b] :len :asc) ; sort by columns :b, :a in ascending order by field length =>`
+
+
+                   |  :a |                 :b | :c |         :d |
+                   |-----+--------------------+----+------------|
+                   |   2 |             string |  1 | 01.01.2015 |
+                   |   3 | the longest string |  6 | 25.12.2015 |
+                   |  44 |      longer string |  9 | 03.03.2013 |
+                   | 111 |             string |  3 | 03.11.2015 |
+                   
+                   Note: sorting by date requires dates in column to be in 'dd.mm.yyyy' format( for conversion date-literal function may be used)
                    " [dataset colnames sorttype mode] 
   
   (let [f (cond 
@@ -283,14 +294,20 @@
                                                                    (.parse (java.text.SimpleDateFormat. "dd.MM.yyyy") (str %1)))
             :else                                        #(compare %1 %2)
             )
-        cols (cond
-               (= (count colnames) 1) (first colnames)
-               :else (apply juxt colnames)
-               )
                ] 
-    ; TODO: rewrite comparators for multiple
-      (-> (make-dataset  (sort-by  (juxt (first colnames) (second colnames)) f   (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
+    ; TODO:  rewrite comparators for multiple 
+   ;   (-> (make-dataset  (sort-by  (juxt (first colnames) (second colnames)) f   (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
    ;  (-> (make-dataset  (sort-by  colname f (:rows dataset)) (column-names dataset)) (with-meta (meta dataset)))))
+      (-> (make-dataset  
+            (sort  #(loop [ctr 0 ]
+;(                      println (str "Comparing" (str ((get colnames ctr) %1)) "---" (str ((get colnames ctr) %2)) "=" (str (f ((get colnames ctr) %1) ((get colnames ctr) %2)))))
+                                                          (if  (or (not= (f ((get colnames ctr) %1) ((get colnames ctr) %2))
+                                                                     (f ((get colnames ctr) %2) ((get colnames ctr) %1))) (= ctr (- (count colnames) 1)))
+                                                           (f ((get colnames ctr) %1) ((get colnames ctr) %2))
+                                                           (recur (inc ctr) ))
+                                                            )  (:rows dataset))
+                        (column-names dataset)) (with-meta (meta dataset)))
+      ))
 
 (defn shift-column "Changes column's position inside a dataset. Two options are available:
   1. Takes a dataset and column name/index and moves this column to the last position, data columns with indices greater than 
@@ -590,9 +607,34 @@
                     | Alice | 123-45-67, 111-11-11 |
                     |   Bob |            777-88-99 |
                         "
-  ([dataset])
-  ([dataset colnames])
-  ([dataset colnames colnames-separators]))
+  ([dataset] (-> (make-dataset (distinct (:rows dataset)) (column-names dataset)) (with-meta (meta dataset))))
+  ([dataset colnames]
+   (let [ ds-rows (:rows dataset) 
+          grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
+                         (into {} (for [groupvar (key m)]
+                                   (assoc (apply merge-with (fn [& args] (first (into [] args))) 
+                                                            (map #(dissoc % (key groupvar)) (val m)))                                  
+                                   (key groupvar) (val groupvar)))))
+]
+     
+             (-> (make-dataset grouped-rows (column-names dataset)) (with-meta (meta dataset)))    
+     )
+   )
+  ([dataset colnames colnames-separators]
+   
+   (let [ds-rows (:rows dataset)
+        grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
+                         (into {} (for [groupvar (key m)]
+                                   (assoc (into {} (for [keyval colnames-separators] 
+                                              (apply merge-with (fn [& args] (clojure.string/join (val keyval) (into [] args))) 
+                                                                (map #(hash-map  (key keyval) (get % (key keyval))) (val m)))
+                                          )
+                                         )
+                          (key groupvar) (val groupvar))))) ]
+;TODO: map all columns to string
+             (-> (make-dataset grouped-rows (column-names dataset)) (with-meta (meta dataset)))   
+            ))) 
+   
 
 
 (defn raise "Given a dataset, name of variable-column that should be used to generate new columns(raise from row values to column names) and
@@ -637,40 +679,70 @@
   )
 
 
-(defn group-rows "Given a dataset, vector of column names and map of colnames--functions and creates a new dataset containg rows grouped by
-  colnames from vector and the result of applying functions to correspondent column values. Each function in a map should 
-  take collection as  a parameter and return a single value. 
+(defn group-rows "Given a dataset, vector of column names and set of maps of form  {colname function-name} and creates a new 
+  dataset containg rows grouped by colnames from vector and the result of applying functions to correspondent column values. 
+  Each function in a map should take sequence of values as  a parameter and return a single value. 
                
-                 For most common aggregations there exists set of pre-defined functions:
+                 For most common aggregations there exists a set of pre-defined functions:
                  - MIN
                  - MAX
                  - SUM
                  - AVG
                  - COUNT
-
+                 - MERGE
 
         Given original dataset:
-                    
-                    | :name |    :order | :payed |
-                    |-------+-----------+--------|
-                    | Alice |      1111 |    110 |
-                    |   Bob |       998 |     55 |
-                    | Alice |      1112 |     35 |
-                    | Alice |      1113 |     25 |
-                    |   Bob |       999 |    375 |
+                   
+
+ 
+                 | :firstname | :lastname | :order_num | :total_items | :total_cost |
+                 |------------+-----------+------------+--------------+-------------|
+                 |      Alice |     Smith |       1111 |            5 |         150 |
+                 |        Bob |   Johnson |        857 |            7 |          70 |
+                 |      Alice |     Smith |       1112 |           30 |         340 |
+                 |      Alice |  Williams |        505 |            1 |         170 |
+                 |        Bob |   Johnson |        858 |            3 |         370 |
+                 |       Mary |  Williams |       1543 |            1 |          15 |
 
    
 
           function returns the following result:
 
-          `(group-rows [:name] {:payed SUM}) ;  =>`
+          `(group-rows dataset [:firstname :lastname] #{ {:total_items \"SUM\"}   ; total number of items person ordered
+                                                    #_=> {:total_cost \"AVG\"}    ; average total cost per one order
+                                                    #_=> {:order_num \"COUNT\"}   ; number of orders person made
+                                                    #_=> {:total_cost \"MAX\"}})  ; maximum total_cost per one order =>`
 
-                    | :name | :payed_SUM |
-                    |-------+------------|
-                    | Alice |        170 |
-                    |   Bob |        430 |
+                 | :firstname | :lastname | :order_num_COUNT | :total_cost_AVG | :total_items_SUM | :total_cost_MAX |
+                 |------------+-----------+------------------+-----------------+------------------+-----------------|
+                 |      Alice |     Smith |                2 |             245 |               35 |             340 |
+                 |        Bob |   Johnson |                2 |             220 |               10 |             370 |
+                 |      Alice |  Williams |                1 |             170 |                1 |             170 |
+                 |       Mary |  Williams |                1 |              15 |                1 |              15 |
+
                  "
-  [dataset colnames colnames-functions ])
+  [dataset colnames colnames-functions ]
+  
+   (let [ds-rows (:rows dataset)
+        grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
+                         (into {} (for [groupvar (key m)]
+                                   (assoc (into {} (for [keyval colnames-functions] 
+                                        (if (and 
+                                              (= (val (first keyval)) 
+                                                "COUNT")
+                                              (= (count  (map #(hash-map (keyword (str (name (key (first keyval))) "_" (val (first keyval)) )) (get % (key (first keyval)))) (val m))) 1))
+                                              ; if there is just one value in group, function is not applied, which is true for all but "COUNT"
+                                              (hash-map (keyword (str (name (key (first keyval))) "_"  (val (first keyval)) )) 1)
+                                              (apply merge-with (resolve (symbol (val (first keyval)))) 
+                                                                (map #(hash-map (keyword (str (name (key (first keyval))) "_" (val (first keyval)))) (get % (key (first keyval)))) (val m)))
+                                          )
+                                         ))
+                          (key groupvar) (val groupvar)))))
+        new-colnames (concat colnames (for [keyval colnames-functions] (keyword (str (name (key (first keyval))) "_" (val (first keyval)) ))))
+        ]
+        (-> (make-dataset grouped-rows new-colnames)(with-meta (meta dataset)))
+     )
+  )
 
 
 (defn join-dataset "Joins two datasets together. Two options are available:
