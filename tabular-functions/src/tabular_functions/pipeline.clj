@@ -317,8 +317,8 @@
                       (let [current (first cs)
                             f (get-comparator (val (first current)))
                             col (key (first current))]
-                        (println (str "Comparing " (str (col %1)) " -- " (str (col %2)) " = " (str (f (col %1) (col %2)))))
-                                                          (if  (or (empty? cs) 
+                   ;     (println (str "Comparing " (str (col %1)) " -- " (str (col %2)) " = " (str (f (col %1) (col %2)))))
+                                                          (if  (or (= (count cs) 1) 
                                                                    (not= 
                                                                    (f (col %1) (col %2))
                                                                    (f (col %2) (col %1))
@@ -553,7 +553,7 @@
     ))
   )
 
-(defn remove-duplicates "Removes duplicates from a dataset. Two options are available:
+(defn remove-duplicates "Removes duplicates from a dataset. Three options are available:
   
   1. Given a dataset sorts it and looks for rows having the same values across all columns and leaves only one instance 
   from each set of such rows, other rows(duplicates) will be removed from a dataset.
@@ -572,7 +572,7 @@
 
           function returns the following result:
 
-          `(remove-duplicates) ;  =>`
+          `(remove-duplicates dataset) ;  =>`
 
                     | :name |    :age |  :gender |
                     |-------+---------+----------|
@@ -598,7 +598,7 @@
 
         function returns the following result:
 
-          `(->(sort-dataset [:name :age] :alpha :desc) (remove-duplicates [:name :gender]) ;  Dataset is first sorted in a such way 
+          `(-> (sort-dataset dataset  [:name :age] :alpha :desc) (remove-duplicates [:name :gender]) ;  Dataset is first sorted in a such way 
                                                                                               that the records about the same person 
                                                                                               are given in descending order by age =>`
 
@@ -608,8 +608,8 @@
                     |   Bob |      32 |     male |
 
 
-  3. Given a dataset, a column(sequence of columns) and map of column names--separators looks for rows having the same values in the 
-  specified field(s) and merges the values from other columns together using given separators
+  3. Given a dataset, a column(sequence of columns) and separator looks for rows having the same values in the  specified field(s) 
+     and merges the values from other columns together using given separator
                     
                         
         Given original dataset:
@@ -624,7 +624,7 @@
 
         function returns the following result:
 
-          `(remove-duplicates [:name] {:phone-nuber \", \"}) ;  =>`
+          `(remove-duplicates dataset [:name] {:phone-nuber \", \"}) ;  =>`
 
                     | :name |        :phone-number |  
                     |-------+----------------------|
@@ -644,21 +644,36 @@
              (-> (make-dataset grouped-rows (column-names dataset)) (with-meta (meta dataset)))    
      )
    )
-  ([dataset colnames colnames-separators]
+  ;([dataset colnames colnames-separators]
+   
+  ; (let [ds-rows (:rows dataset)
+   ;     grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
+    ;                     (into {} (for [groupvar (key m)]
+     ;                              (assoc (into {} (for [keyval colnames-separators] 
+      ;                                        (apply merge-with (fn [& args] (clojure.string/join (val keyval) (into [] args))) 
+       ;                                                         (map #(hash-map  (key keyval) (get % (key keyval))) (val m)))
+        ;                                  )
+         ;                                )
+          ;                (key groupvar) (val groupvar))))) ]
+;TODO: map all columns to string
+           ;  (-> (make-dataset grouped-rows (column-names dataset)) (with-meta (meta dataset)))   
+            ;)) 
+   
+  ([dataset colnames separator]
    
    (let [ds-rows (:rows dataset)
-        grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
+         cols-to-merge (remove (fn [i] (some #(= i %) colnames)) (column-names dataset))
+         grouped-rows   (for [m (group-by #(select-keys % colnames) ds-rows)] 
                          (into {} (for [groupvar (key m)]
-                                   (assoc (into {} (for [keyval colnames-separators] 
-                                              (apply merge-with (fn [& args] (clojure.string/join (val keyval) (into [] args))) 
-                                                                (map #(hash-map  (key keyval) (get % (key keyval))) (val m)))
+                                   (assoc (into {} (for [merge-col cols-to-merge] 
+                                              (apply merge-with (fn [& args] (clojure.string/join separator (distinct (into [] args)))) 
+                                                                (map #(hash-map  merge-col (get % merge-col)) (val m)))
                                           )
                                          )
                           (key groupvar) (val groupvar))))) ]
 ;TODO: map all columns to string
              (-> (make-dataset grouped-rows (column-names dataset)) (with-meta (meta dataset)))   
             ))) 
-   
 
 
 (defn raise "Given a dataset, name of variable-column that should be used to generate new columns(raise from row values to column names) and
@@ -695,13 +710,29 @@
 
             "
   [dataset variable value]
-  (
-   ;sort
-   ;group by all but mentioned columns
-   ;
-   )
+     (letfn [(build-raised-row [row] (hash-map (keyword (string-as-keyword (get row variable))) (get row value)))]
+  (let [canonicalise-key (partial resolve-column-id dataset)
+        input-columns (map canonicalise-key (column-names dataset))
+        cols-to-raise (map canonicalise-key [variable value])
+        pivot-keys (clojure.set/difference (set input-columns) (set cols-to-raise)) 
+        ordered-pivot-keys (keep pivot-keys input-columns)
+        raised-rows (for [m (group-by #(select-keys % pivot-keys) (:rows dataset))]  (
+                                                                                       into {} (for [groupvar (key m)] (assoc (into {} (mapcat build-raised-row (val m))) (key groupvar) (val groupvar)))
+                                                                                       ))
+        new-columns (set ( into [] (->> dataset 
+                                            :rows
+                                            (map (fn [row]
+                                                     (keyword (string-as-keyword (get row variable)))))
+                                            
+                                            )))
+                                                        
+        ]
+   (-> (make-dataset raised-rows 
+                     (concat ordered-pivot-keys new-columns))
+       (with-meta (meta dataset)))
+    )
   )
-
+)
 
 (defn group-rows "Given a dataset, vector of column names and set of maps of form  {colname function-name} and creates a new 
   dataset containg rows grouped by colnames from vector and the result of applying functions to correspondent column values. 
@@ -766,8 +797,7 @@
         ]
         (-> (make-dataset grouped-rows new-colnames)(with-meta (meta dataset)))
      )
-  )
-
+) 
 
 (defn join-dataset "Joins two datasets together. Two options are available:
                    

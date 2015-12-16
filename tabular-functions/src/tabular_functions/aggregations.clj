@@ -14,3 +14,5 @@
 (defn SUM [& args] (apply + args))
 (defn COUNT [& args] (count (into [] args)))
 (defn AVG [& args] (/ (apply SUM args) (apply COUNT args)))
+(defn COUNT-DISTINCT [& args] (count (distinct (into [] args))))
+(defn MEDIAN [& args] ())

@@ -1,4 +1,4 @@
-(defproject tabular-functions "0.1.0-SNAPSHOT"
+(defproject org.clojars.dina/tabular-functions "0.1.0-SNAPSHOT"
   :description "Functions to perform tabular transformations for use in Grafter pipelines"
   :url "http://github.com/dinans/tabular-functions"
   :license {:name "Eclipse Public License"

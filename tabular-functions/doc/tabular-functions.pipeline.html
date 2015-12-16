@@ -301,7 +301,7 @@ are found, function will throw an error. Example:
                    | 1 | 1 | 1 |
                    | 2 | 2 | 2 |
 
-        </pre></div></div><div class="public anchor" id="var-remove-duplicates"><h3>remove-duplicates</h3><div class="usage"><code>(remove-duplicates dataset)</code><code>(remove-duplicates dataset colnames)</code><code>(remove-duplicates dataset colnames colnames-separators)</code></div><div class="doc"><pre class="plaintext">Removes duplicates from a dataset. Two options are available:
+        </pre></div></div><div class="public anchor" id="var-remove-duplicates"><h3>remove-duplicates</h3><div class="usage"><code>(remove-duplicates dataset)</code><code>(remove-duplicates dataset colnames)</code><code>(remove-duplicates dataset colnames separator)</code></div><div class="doc"><pre class="plaintext">Removes duplicates from a dataset. Three options are available:
 
 1. Given a dataset sorts it and looks for rows having the same values across all columns and leaves only one instance 
 from each set of such rows, other rows(duplicates) will be removed from a dataset.
@@ -320,7 +320,7 @@ from each set of such rows, other rows(duplicates) will be removed from a datase
 
         function returns the following result:
 
-        `(remove-duplicates) ;  =&gt;`
+        `(remove-duplicates dataset) ;  =&gt;`
 
                   | :name |    :age |  :gender |
                   |-------+---------+----------|
@@ -346,7 +346,7 @@ only the first encountered row in this sequence. Dataset should be sorted in des
 
       function returns the following result:
 
-        `(-&gt;(sort-dataset [:name :age] :alpha :desc) (remove-duplicates [:name :gender]) ;  Dataset is first sorted in a such way 
+        `(-&gt; (sort-dataset dataset  [:name :age] :alpha :desc) (remove-duplicates [:name :gender]) ;  Dataset is first sorted in a such way 
                                                                                             that the records about the same person 
                                                                                             are given in descending order by age =&gt;`
 
@@ -356,8 +356,8 @@ only the first encountered row in this sequence. Dataset should be sorted in des
                   |   Bob |      32 |     male |
 
 
-3. Given a dataset, a column(sequence of columns) and map of column names--separators looks for rows having the same values in the 
-specified field(s) and merges the values from other columns together using given separators
+3. Given a dataset, a column(sequence of columns) and separator looks for rows having the same values in the  specified field(s) 
+   and merges the values from other columns together using given separator
                   
                       
       Given original dataset:
@@ -372,7 +372,7 @@ specified field(s) and merges the values from other columns together using given
 
       function returns the following result:
 
-        `(remove-duplicates [:name] {:phone-nuber &quot;, &quot;}) ;  =&gt;`
+        `(remove-duplicates dataset [:name] {:phone-nuber &quot;, &quot;}) ;  =&gt;`
 
                   | :name |        :phone-number |  
                   |-------+----------------------|
@@ -478,19 +478,20 @@ Other columns will be shifted appropriately.
             | 10  | 11  | 12  | 
             | 4   | 5   | 6   |
               
- </pre></div></div><div class="public anchor" id="var-sort-dataset"><h3>sort-dataset</h3><div class="usage"><code>(sort-dataset dataset colnames sorttype mode)</code></div><div class="doc"><pre class="plaintext">Sorts dataset by given column name(s) in given order. Type of comparator used for sorting is defined 
-by the third parameter as one of following:
-                 - :alpha for alphabetical sorting;
-                 - :num for numerical sorting;
-                 - :len for sorting by field length;
-                 - :date for sorting dates
+ </pre></div></div><div class="public anchor" id="var-sort-dataset"><h3>sort-dataset</h3><div class="usage"><code>(sort-dataset dataset colnames-sorttypes)</code></div><div class="doc"><pre class="plaintext">Sorts dataset by given column names in given order. Column names and types of sorting are given in a vector. 
+Sorting priority is defined by order of column name -- sorting type pair. Sorting by multiple columns works as follows: 
+if several rows have equal columns(first in the vector of given columns) according to the given comparator type, these rows 
+will be sorted by second column and second comparator, if both first and second are equal, sorting will be performed by the third column 
+and third comparator etc.                 
 
-Order is given in forth parameter as either :asc for ascending and :desc for descending. 
-Sorting by multiple columns works as follows: if several rows have equal columns(first in the vector of given columns) 
-according to the given comparator type, these rows will be sorted by second column, if both first and second are equal, 
-sorting will be performed by the third column etc.                 
+Type of comparator used for sorting is defined as one of following:
 
-Examples:
+                 - :ascalpha, :descalpha for alphabetical sorting (in ascending and descending order correspondingly);
+                 - :ascnum, :descnum for numerical sorting;
+                 - :asclen, :desclen for sorting by field length;
+                 - :ascdate, :descdate for sorting dates
+
+  Examples:
                  
            Given original dataset
  
@@ -504,7 +505,7 @@ Examples:
 
            calling function with different parameters results in following datasets:
 
-              `(sort-dataset dataset [:a] :alpha :asc) ; sort by column :a in ascending alphabetical order =&gt;`
+              `(sort-dataset dataset [{:a :ascalpha}]) ; sort by column :a in ascending alphabetical order =&gt;`
                  
 
                  |  :a |                 :b | :c |         :d |
@@ -516,7 +517,7 @@ Examples:
 
 
 
-             `(sort-dataset dataset [:a] :alpha :desc) ; sort by column :a in descending alphabetical order =&gt;`
+             `(sort-dataset dataset [{:a :descalpha}]) ; sort by column :a in descending alphabetical order =&gt;`
 
                  |  :a |                 :b | :c |         :d |
                  |-----+--------------------+----+------------|
@@ -526,7 +527,7 @@ Examples:
                  |  44 |      longer string |  9 | 03.03.2013 |
 
 
-             `(sort-dataset dataset [:a] :num :asc) ; sort by column :a in ascending numerical order =&gt;`
+             `(sort-dataset dataset [{:a :ascnum}]) ; sort by column :a in ascending numerical order =&gt;`
 
                  |  :a |                 :b | :c |         :d |
                  |-----+--------------------+----+------------|
@@ -536,7 +537,7 @@ Examples:
                  | 111 |             string |  3 | 03.11.2015 |
 
 
-             `(sort-dataset dataset [:b] :len :asc) ; sort by column :b in ascending order by field length =&gt;`
+             `(sort-dataset dataset [{:b :asclen}]) ; sort by column :b in ascending order by field length =&gt;`
 
 
                  |  :a |                 :b | :c |         :d |
@@ -547,7 +548,7 @@ Examples:
                  | 111 |             string |  3 | 03.11.2015 |
                  
                  
-             `(sort-dataset dataset [:d] :date :asc) ; sort by column :d in ascending order by date =&gt;`
+             `(sort-dataset dataset [{:d :ascdate}]) ; sort by column :d in ascending order by date =&gt;`
 
 
                  |  :a |                 :b | :c |         :d |
@@ -558,7 +559,7 @@ Examples:
                  |   3 | the longest string |  6 | 25.12.2015 |
 
 
-             `(sort-dataset dataset [:b :a] :len :asc) ; sort by columns :b, :a in ascending order by field length =&gt;`
+             `(sort-dataset dataset [{:b asclen} {:a :asclen}]) ; sort by column :b in ascending order by field length, for equal values arrange by column :a in ascending order by length =&gt;`
 
 
                  |  :a |                 :b | :c |         :d |
@@ -569,7 +570,8 @@ Examples:
                  |   3 | the longest string |  6 | 25.12.2015 |
 
 
-             `(sort-dataset dataset [:a :b] :len :asc) ; sort by columns :b, :a in ascending order by field length =&gt;`
+
+             `(sort-dataset dataset [{:a asclen} {:b :asclen}]) ; sort by column :a in ascending order by field length, for equal values arrange by column :b in ascending order by length =&gt;`
 
 
                  |  :a |                 :b | :c |         :d |

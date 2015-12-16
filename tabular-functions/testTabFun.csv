@@ -1,0 +1,7 @@
+firstname,lastname,age,address,phone_num,order_num,order_date,total_items,total_cost
+Alice,Smith,23,"New York, Harrison Street, 507",263-86-335,1111,10.11.2015,5,150
+Bob,Johnson,35,"Richmond, Main Street, 17",227-11-594,857,10.11.2015,7,70
+Alice,Smith,24,"NY, Harrison Street, 29, H0512",263-86-335,1112,11.11.2015,30,340
+Alice,Williams,19,"New York, East 52nd Street, 55",493-78-145,505,11.11.2015,1,170
+Bob,Johnson,35,"Richmond, Main Street, 17",482-16-177,858,11.11.2015,3,370
+Mary,Williams,28,"Florida, Orange, Orlando, East Winter Park Road, 1842",278-32-16,1543,12.11.2015,1,15

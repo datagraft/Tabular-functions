@@ -7,5 +7,8 @@
      [grafter.rdf.templater :refer [graph]]
      [grafter.vocabularies.rdf :refer :all]
      [grafter.vocabularies.foaf :refer :all]
+     [tabular-functions.aggregations :refer :all]
      [incanter.core :as inc]  ))
 
+(defn compute-stats "Collects general statistics for the dataset" [ds]
+  () )
